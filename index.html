@@ -14,8 +14,7 @@
   #main{flex:1;display:flex;align-items:center;justify-content:center}
   #content{width:min(600px,85vw);margin:40px 0 60px}
   #title{display:flex;align-items:center;gap:10px;font-size:26px;line-height:1.3}
-  #titleFavicon{width:24px;height:24px;flex:none;opacity:.3;transform:translateY(2px)}
-  .js #titleFavicon{opacity:.05}
+  .titleLogo{width:24px;height:24px;flex:none;opacity:.6;transform:translateY(2px)}
   #titleText{min-width:0;overflow-wrap:anywhere}
   b{font-weight:700}
   @supports(font-weight:500){b{font-weight:500}}
@@ -29,7 +28,7 @@
 <div id="main">
   <div id="content">
     <div id="title">
-      <img id="titleFavicon" src="https://favicons.nextdns.io/hex:626c6f636b706167652e6e657874646e732e696f@3x.png" alt="" aria-hidden="true">
+      <svg class="titleLogo" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="nextdnsLogoGradient" gradientTransform="matrix(.43837115 .89879405 -.89879405 .43837115 0 0)"><stop offset="0" stop-color="#00a9ff"/><stop offset="1" stop-color="#05f"/></linearGradient></defs><path d="m469.139 139.984-.016-.391c-.218-4.819-.363-9.919-.452-15.592-.409-27.666-22.402-50.55-50.071-52.097-57.69-3.219-102.319-22.031-140.45-59.198l-.326-.31c-12.437-11.404-31.199-11.404-43.64.0l-.326.31c-38.132 37.167-82.76 55.979-140.45 59.202-27.666 1.543-49.662 24.427-50.072 52.097-.084 5.635-.233 10.734-.452 15.588l-.023.907c-1.121 58.827-2.515 132.04 21.978 198.493 13.467 36.543 33.863 68.309 60.618 94.42 30.472 29.737 70.384 53.345 118.626 70.166 1.57.547 3.2.991 4.862 1.324 2.343.467 4.701.701 7.059.701s4.72-.234 7.059-.701c1.661-.333 3.304-.78 4.881-1.332 48.184-16.851 88.054-40.471 118.499-70.204 26.744-26.119 47.14-57.892 60.619-94.443 24.584-66.652 23.194-140.003 22.077-198.94z" fill="url(#nextdnsLogoGradient)"/></svg>
       <span id="titleText"><b>Checking</b>&hellip;</span>
     </div>
     <div id="message">Looking up why this page loaded&hellip;</div>
@@ -39,9 +38,7 @@
     </div>
   </div>
 </div>
-<div class="logo">
-  <svg viewBox="0 0 512 512"><defs><linearGradient id="nextdnsLogoGradient" gradientTransform="matrix(.43837115 .89879405 -.89879405 .43837115 0 0)"><stop offset="0" stop-color="#00a9ff"/><stop offset="1" stop-color="#05f"/></linearGradient></defs><path d="m469.139 139.984-.016-.391c-.218-4.819-.363-9.919-.452-15.592-.409-27.666-22.402-50.55-50.071-52.097-57.69-3.219-102.319-22.031-140.45-59.198l-.326-.31c-12.437-11.404-31.199-11.404-43.64.0l-.326.31c-38.132 37.167-82.76 55.979-140.45 59.202-27.666 1.543-49.662 24.427-50.072 52.097-.084 5.635-.233 10.734-.452 15.588l-.023.907c-1.121 58.827-2.515 132.04 21.978 198.493 13.467 36.543 33.863 68.309 60.618 94.42 30.472 29.737 70.384 53.345 118.626 70.166 1.57.547 3.2.991 4.862 1.324 2.343.467 4.701.701 7.059.701s4.72-.234 7.059-.701c1.661-.333 3.304-.78 4.881-1.332 48.184-16.851 88.054-40.471 118.499-70.204 26.744-26.119 47.14-57.892 60.619-94.443 24.584-66.652 23.194-140.003 22.077-198.94z" fill="url(#nextdnsLogoGradient)"/></svg>
-</div>
+<img id="titleFavicon" class="logo" src="https://favicons.nextdns.io/hex:626c6f636b706167652e6e657874646e732e696f@3x.png" alt="" aria-hidden="true">
 
 <script>
 (function () {
@@ -139,10 +136,38 @@
   function setFavicon(domain) {
     var titleFavicon = document.getElementById("titleFavicon");
     var faviconUrl = "https://favicons.nextdns.io/hex:" + toHex(domain) + "@3x.png";
-    var img = new Image();
-    img.onload = function () { titleFavicon.src = faviconUrl; titleFavicon.style.opacity = "1"; };
-    img.onerror = function () { titleFavicon.style.opacity = "0.3"; };
-    img.src = faviconUrl;
+
+    // favicons.nextdns.io returns 200 even for domains it has no favicon for —
+    // it silently serves a generic placeholder shield instead of erroring.
+    // So img.onload alone can't tell "real favicon" from "no favicon". Instead,
+    // fetch both the real target and an obviously-fake domain as blobs and
+    // compare byte sizes: if they match, it's the generic placeholder and we
+    // keep the nicer default shield already showing rather than swap to it.
+    var fakeDomain = "xn--" + Math.random().toString(36).slice(2, 20) + ".invalid";
+    var placeholderUrl = "https://favicons.nextdns.io/hex:" + toHex(fakeDomain) + "@3x.png";
+
+    Promise.all([
+      fetch(faviconUrl).then(function (r) { return r.ok ? r.blob() : null; }).catch(function () { return null; }),
+      fetch(placeholderUrl).then(function (r) { return r.ok ? r.blob() : null; }).catch(function () { return null; })
+    ]).then(function (results) {
+      var real = results[0], placeholder = results[1];
+      if (!real) { titleFavicon.style.opacity = "0.3"; return; }
+      if (placeholder && real.size === placeholder.size) {
+        // Matches the known generic filler — not a real favicon, skip it.
+        titleFavicon.style.opacity = "0.6";
+        return;
+      }
+      var objectUrl = URL.createObjectURL(real);
+      titleFavicon.src = objectUrl;
+      titleFavicon.style.opacity = "1";
+    }).catch(function () {
+      // Fetch/CORS blocked for some reason — fall back to the simple
+      // <img> load path so the icon isn't permanently stuck.
+      var img = new Image();
+      img.onload = function () { titleFavicon.src = faviconUrl; titleFavicon.style.opacity = "1"; };
+      img.onerror = function () { titleFavicon.style.opacity = "0.3"; };
+      img.src = faviconUrl;
+    });
   }
 
   function toHex(str) {
